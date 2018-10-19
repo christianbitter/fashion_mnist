@@ -5,7 +5,6 @@ import tensorflow as tf
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from tqdm import tqdm
 import os
 from Params import Params
 
@@ -16,6 +15,7 @@ from Params import Params
 def show_row(m, width=28, height=28):
     plt.imshow(X = m.reshape((height, width)), cmap='gray')
     plt.show()
+
 
 class TFFashionMNIST(object):
     def __init__(self,
@@ -34,7 +34,6 @@ class TFFashionMNIST(object):
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.no_epochs = epochs
-
         # image shape = batch, height, width, color channels
         with tf.name_scope('input'):
             self.data = tf.placeholder(dtype=tf.float32, shape=(None, 28, 28, 1), name='data')
@@ -100,25 +99,25 @@ class TFFashionMNIST(object):
 
     def create_model(self):
         # convnet layer 1 - convolution, max pooling, convolution max pooling, flatten, dense, dense
+        self.model = tf.keras.Sequential()
+
         with tf.name_scope('conv1'):
-            self.conv1 = tf.layers.conv2d(inputs=self.data, kernel_size=(3, 3), filters=30, activation='relu')
-            self.mpool1= tf.layers.max_pooling2d(inputs=self.conv1, pool_size=(2, 2), strides=(2, 2))
+            self.model.add(tf.keras.layers.Conv2D(filters=30, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
             # potential dropout
 
         with tf.name_scope('conv2'):
-            self.conv2 = tf.layers.conv2d(inputs=self.mpool1, kernel_size=(3, 3), filters=80, activation='relu')
-            self.mpool2= tf.layers.max_pooling2d(inputs=self.conv2, pool_size=(2, 2), strides=(2, 2))
+            self.model.add(tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
 
         with tf.name_scope('conv3'):
-            self.conv3 = tf.layers.conv2d(inputs=self.mpool2, kernel_size=(3, 3), filters=120, activation='relu')
-            self.mpool3= tf.layers.max_pooling2d(inputs=self.conv3, pool_size=(2, 2), strides=(2, 2))
-
-        final_layer = self.mpool3
+            self.model.add(tf.keras.layers.Conv2D(filters=100, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
 
         with tf.name_scope('output'):
-            self.flatten = tf.layers.flatten(inputs=final_layer)
-            self.dense1  = tf.layers.dense(inputs=self.flatten, units=500)
-            self.logits  = tf.layers.dense(inputs=self.dense1, units=self.number_of_classes)
+            self.model.add(tf.keras.layers.Flatten())
+            self.model.add(tf.keras.layers.Dense(units=500))
+            self.model.add(tf.keras.layers.Dense(units=self.number_of_classes))
 
     def create_loss(self):
         # softmax cross entropy loss for multi-class classification
