@@ -22,8 +22,8 @@ class TFFashionMNIST(object):
                  learning_rate=.003,
                  epochs    =10,
                  batch_size=10,
-                 train_fp="C:/Data/Kaggle_-_Fashion_MNIST/fashion-mnist_train.csv",
-                 test_fp="C:/Data/Kaggle_-_Fashion_MNIST/fashion-mnist_test.csv",
+                 train_fp="Data/fashion-mnist_train.csv",
+                 test_fp="Data/fashion-mnist_test.csv",
                  verbose=False):
         self.training_fp = train_fp
         self.testing_fp = test_fp
@@ -35,10 +35,6 @@ class TFFashionMNIST(object):
         self.batch_size = batch_size
         self.no_epochs = epochs
         # image shape = batch, height, width, color channels
-        with tf.name_scope('input'):
-            self.data = tf.placeholder(dtype=tf.float32, shape=(None, 28, 28, 1), name='data')
-            self.label= tf.placeholder(dtype=tf.int32, shape=None, name='label')
-
         if self.verbose:
             print("Learning Rate: {0} - Batch Size: {1} - Number of Epochs: {2}".format(self.learning_rate,
                                                                                          self.batch_size,
@@ -47,6 +43,7 @@ class TFFashionMNIST(object):
     def __global_preprocess(self, data, label):
         data = tf.cast(data, dtype=tf.float32)
         data = data / 255.
+        label = tf.cast(label, dtype=tf.int64)
         return (data, label)
 
     def __train_preprocess(self, data, label):
@@ -63,7 +60,7 @@ class TFFashionMNIST(object):
         self.train_df = pd.read_csv(self.training_fp).values
         self.no_train   = self.train_df.shape[0]
         self.train_data = self.train_df[:self.no_train, 1:].reshape((self.no_train, self.img_height, self.img_width, 1))
-        self.train_label= self.train_df[:self.no_train, 0]
+        self.train_label= tf.keras.utils.to_categorical(self.train_df[:self.no_train, 0], self.number_of_classes)
         if verbose:
             print("Training Set Size: {0}".format(self.no_train))
 
@@ -72,7 +69,7 @@ class TFFashionMNIST(object):
         self.test_df = pd.read_csv(self.training_fp).values
         self.no_test = self.train_df.shape[0]
         self.test_data = self.test_df[:self.no_test, 1:].reshape((self.no_test, self.img_height, self.img_width, 1))
-        self.test_label= self.test_df[:self.no_test, 0]
+        self.test_label = tf.keras.utils.to_categorical(self.test_df[:self.no_test, 0], self.number_of_classes)
         if verbose:
             print("Testing Set Size: {0}".format(self.no_test))
 
@@ -102,44 +99,63 @@ class TFFashionMNIST(object):
         self.model = tf.keras.Sequential()
 
         with tf.name_scope('conv1'):
-            self.model.add(tf.keras.layers.Conv2D(filters=30, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3), activation='relu'))
             self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
-            # potential dropout
+            self.model.add(tf.keras.layers.Dropout(rate=.2))
 
         with tf.name_scope('conv2'):
-            self.model.add(tf.keras.layers.Conv2D(filters=50, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.Conv2D(filters=128, kernel_size=(3, 3), activation='relu'))
             self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
+            self.model.add(tf.keras.layers.Dropout(rate=.2))
 
-        with tf.name_scope('conv3'):
-            self.model.add(tf.keras.layers.Conv2D(filters=100, kernel_size=(3, 3), activation='relu'))
-            self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
+        # with tf.name_scope('conv3'):
+        #     self.model.add(tf.keras.layers.Conv2D(filters=100, kernel_size=(3, 3), activation='relu'))
+        #     self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
+        #     self.model.add(tf.keras.layers.Dropout(rate=.2))
 
         with tf.name_scope('output'):
             self.model.add(tf.keras.layers.Flatten())
-            self.model.add(tf.keras.layers.Dense(units=500))
+            self.model.add(tf.keras.layers.Dense(units=512, activation='relu'))
+            self.model.add(tf.keras.layers.Dropout(rate=.3))
             self.model.add(tf.keras.layers.Dense(units=self.number_of_classes))
 
     def create_loss(self):
         # softmax cross entropy loss for multi-class classification
 
         with tf.name_scope('loss'):
-            self.loss_fn = tf.losses.sparse_softmax_cross_entropy(labels=self.label, logits=self.logits)
-            # run the logits through the softmax layer
-            predictions = tf.cast(tf.argmax(self.logits, 1), dtype=tf.int32)
-            self.accuracy_fn = tf.reduce_mean(tf.cast(tf.equal(x=self.label, y=predictions), dtype=tf.float32))
-
-        tf.summary.scalar(name='Loss', tensor=self.loss_fn)
-        tf.summary.scalar(name='Accuracy', tensor=self.accuracy_fn)
+            self.loss_fn = tf.keras.losses.categorical_crossentropy
+            self.accuracy_fn = tf.keras.metrics.categorical_accuracy
 
     def create_optimizer(self):
-        self.global_step = tf.train.get_or_create_global_step()
-        with tf.name_scope('Optimizer'):
-            self.train_fn = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate).minimize(self.loss_fn,
-                                                                                              global_step=self.global_step)
+        self.model.compile(optimizer=tf.train.AdamOptimizer(self.learning_rate),
+                           loss='categorical_crossentropy',
+                           metrics=['accuracy'])
+
+    def train(self, log_dir=None):
+        callbacks = []
+        if log_dir:
+            if self.verbose:
+                print("Enabling Keras Tensorboard Callback: %s" % log_dir)
+            kcb = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=True, write_images=False)
+            callbacks.append(kcb)
+
+        self.model.fit(x=self.train_data,
+                       y=self.train_label,
+                       batch_size=self.batch_size,
+                       # steps_per_epoch=self.no_training_steps,
+                       epochs=self.no_epochs,
+                       validation_data= (self.test_data, self.test_label),
+                       # validation_steps=self.no_testing_steps,
+                       verbose=True,
+                       callbacks=callbacks
+                       )
 
     def __train_single_iteration(self):
         pass
 
+# x_train shape: (60000, 28, 28) y_train shape: (60000,)
+# (x_train, y_train), (x_test, y_test) = tf.keras.datasets.fashion_mnist.load_data()
+# print("x_train shape:", x_train.shape, "y_train shape:", y_train.shape)
 
 tf.set_random_seed(1234)
 
@@ -149,73 +165,19 @@ lr = parms.params["learning_rate"]
 no_epochs = parms.params["no_epochs"]
 batch_size = parms.params["batch_size"]
 
-model_dir = "C:/Development/repos/python_projects/tensorflow/fashion_mnist"
+model_dir = "D:/Users/gfrsa/python/tensorflow/fashion_mnist" # "C:/Development/repos/python_projects/tensorflow/fashion_mnist"
 log_dir   = "%s/logs/%s" % (model_dir, lr)
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
-
+#
 model = TFFashionMNIST(learning_rate=lr, batch_size=batch_size, epochs=no_epochs, verbose=True)
 model.import_data(verbose=True)
+print("x_train shape:", model.train_data.shape, "y_train shape:", model.train_label.shape)
 model.create_model()
 model.create_loss()
 model.create_optimizer()
+model.train(log_dir=log_dir)
 
-next_data, next_label = model.train_iter.get_next()
-next_v_data, next_v_label = model.test_iter.get_next()
-train_init_op = model.train_iter.initializer
-test_init_op = model.test_iter.initializer
-merged_summary = tf.summary.merge_all()
 
-# now the training loop
-with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
-
-    train_writer = tf.summary.FileWriter(os.path.join(log_dir, 'train_summaries'), sess.graph)
-    eval_writer = tf.summary.FileWriter(os.path.join(log_dir, 'eval_summaries'), sess.graph)
-
-    validation_loss = 0.
-    validation_accuracy = 0.
-    i_batch = 0
-    for epoch in range(no_epochs):
-        print("Starting-Training-Epoch: %s" % epoch)
-
-        sess.run([train_init_op, test_init_op])
-        try:
-            while True:
-                train_data, train_label = sess.run([next_data, next_label])
-                # print("%s" % (train_data.shape, ))
-                _, accuracy_val, loss_val, summary_val = sess.run([model.train_fn, model.accuracy_fn, model.loss_fn, merged_summary],
-                                          feed_dict={
-                                              model.data: train_data,
-                                              model.label: train_label
-                                          })
-                train_writer.add_summary(summary_val)
-                # print("Batch Training Loss/ Accuracy: %s - %s" % (loss_val, accuracy_val))
-        except tf.errors.OutOfRangeError:
-            pass
-
-        # evaluate on validation data
-        print("Performing Validation: %s" % epoch)
-        try:
-            while True:
-                test_data, test_label = sess.run([next_v_data, next_v_label])
-                validation_loss_val, validation_accuracy_val = sess.run([model.loss_fn, model.accuracy_fn],
-                                                                        feed_dict={
-                                                                            model.data: test_data,
-                                                                            model.label: test_label
-                                                                        })
-                validation_loss += validation_loss_val
-                validation_accuracy += validation_accuracy_val
-                i_batch = i_batch + 1
-        except tf.errors.OutOfRangeError:
-            pass
-        validation_loss = validation_loss / float(i_batch)
-        validation_accuracy = validation_accuracy / float(i_batch)
-        print("Validation Loss: {0} - Accuracy: {1}".format(validation_loss, validation_accuracy))
-
-        # add step on validation and training set
-    pass
-
-    train_writer.close()
-    eval_writer.close()
+#loss: 14.5063 - sparse_categorical_crossentropy: 14.5063 - val_loss: 14.5063 - val_sparse_categorical_crossentropy: 14.5063
