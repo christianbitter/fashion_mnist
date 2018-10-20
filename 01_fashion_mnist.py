@@ -60,7 +60,8 @@ class TFFashionMNIST(object):
         self.train_df = pd.read_csv(self.training_fp).values
         self.no_train   = self.train_df.shape[0]
         self.train_data = self.train_df[:self.no_train, 1:].reshape((self.no_train, self.img_height, self.img_width, 1))
-        self.train_label= tf.keras.utils.to_categorical(self.train_df[:self.no_train, 0], self.number_of_classes)
+        self.train_data = self.train_data / 255.
+        self.train_label= self.train_df[:self.no_train, 0]
         if verbose:
             print("Training Set Size: {0}".format(self.no_train))
 
@@ -69,44 +70,25 @@ class TFFashionMNIST(object):
         self.test_df = pd.read_csv(self.training_fp).values
         self.no_test = self.train_df.shape[0]
         self.test_data = self.test_df[:self.no_test, 1:].reshape((self.no_test, self.img_height, self.img_width, 1))
-        self.test_label = tf.keras.utils.to_categorical(self.test_df[:self.no_test, 0], self.number_of_classes)
+        self.test_data = self.test_data / 255.
+        self.test_label = self.test_df[:self.no_test, 0]
         if verbose:
             print("Testing Set Size: {0}".format(self.no_test))
 
-        if verbose:
-            print("Performing Data Transformation ...")
-
-        with tf.device('/cpu:0'):
-            self.train_dataset = tf.data.Dataset.from_tensor_slices((self.train_data, self.train_label))
-            self.train_dataset = self.train_dataset.shuffle(buffer_size=self.train_df.shape[0], reshuffle_each_iteration=True)
-            self.train_dataset = self.train_dataset.repeat(count=self.no_epochs)
-            self.train_dataset = self.train_dataset.map(self.__global_preprocess, num_parallel_calls=4)
-            self.train_dataset = self.train_dataset.map(self.__train_preprocess, num_parallel_calls=4)
-            self.train_dataset = self.train_dataset.batch(batch_size=self.batch_size)
-            self.train_dataset = self.train_dataset.prefetch(buffer_size=self.batch_size)
-
-            self.test_dataset = tf.data.Dataset.from_tensor_slices((self.test_data, self.test_label))
-            self.test_dataset = self.test_dataset.map(self.__global_preprocess, num_parallel_calls=4)
-            self.test_dataset = self.test_dataset.map(self.__test_preprocess, num_parallel_calls=4)
-            self.test_dataset = self.test_dataset.batch(batch_size=self.batch_size)
-            self.test_dataset = self.test_dataset.prefetch(buffer_size=self.batch_size)
-
-            self.train_iter = self.train_dataset.make_initializable_iterator()
-            self.test_iter = self.test_dataset.make_initializable_iterator()
 
     def create_model(self):
         # convnet layer 1 - convolution, max pooling, convolution max pooling, flatten, dense, dense
         self.model = tf.keras.Sequential()
 
         with tf.name_scope('conv1'):
-            self.model.add(tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3), padding='same'))
             self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
-            self.model.add(tf.keras.layers.Dropout(rate=.2))
+            # self.model.add(tf.keras.layers.Dropout(rate=.2))
 
         with tf.name_scope('conv2'):
-            self.model.add(tf.keras.layers.Conv2D(filters=128, kernel_size=(3, 3), activation='relu'))
+            self.model.add(tf.keras.layers.Conv2D(filters=128, kernel_size=(3, 3), padding='same'))
             self.model.add(tf.keras.layers.MaxPool2D(pool_size=(2, 2)))
-            self.model.add(tf.keras.layers.Dropout(rate=.2))
+            # self.model.add(tf.keras.layers.Dropout(rate=.2))
 
         # with tf.name_scope('conv3'):
         #     self.model.add(tf.keras.layers.Conv2D(filters=100, kernel_size=(3, 3), activation='relu'))
@@ -115,8 +97,8 @@ class TFFashionMNIST(object):
 
         with tf.name_scope('output'):
             self.model.add(tf.keras.layers.Flatten())
-            self.model.add(tf.keras.layers.Dense(units=512, activation='relu'))
-            self.model.add(tf.keras.layers.Dropout(rate=.3))
+            self.model.add(tf.keras.layers.Dense(units=1024, activation=tf.nn.relu))
+            self.model.add(tf.keras.layers.Dropout(rate=.5))
             self.model.add(tf.keras.layers.Dense(units=self.number_of_classes))
 
     def create_loss(self):
@@ -128,8 +110,8 @@ class TFFashionMNIST(object):
 
     def create_optimizer(self):
         self.model.compile(optimizer=tf.train.AdamOptimizer(self.learning_rate),
-                           loss='categorical_crossentropy',
-                           metrics=['accuracy'])
+                           loss=self.loss_fn,
+                           metrics=[self.accuracy_fn])
 
     def train(self, log_dir=None):
         callbacks = []
@@ -165,7 +147,7 @@ lr = parms.params["learning_rate"]
 no_epochs = parms.params["no_epochs"]
 batch_size = parms.params["batch_size"]
 
-model_dir = "D:/Users/gfrsa/python/tensorflow/fashion_mnist" # "C:/Development/repos/python_projects/tensorflow/fashion_mnist"
+model_dir = "C:/Development/repos/python_projects/tensorflow/fashion_mnist"
 log_dir   = "%s/logs/%s" % (model_dir, lr)
 
 if not os.path.exists(log_dir):
