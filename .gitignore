@@ -27,6 +27,7 @@ MANIFEST
 
 %USERPROFILE%/
 logs/
+checkpoints/
 data/*.csv
 
 # PyInstaller

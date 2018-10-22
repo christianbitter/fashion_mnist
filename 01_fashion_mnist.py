@@ -62,6 +62,8 @@ class TFFashionMNIST(object):
         self.train_data = self.train_df[:self.no_train, 1:].reshape((self.no_train, self.img_height, self.img_width, 1))
         self.train_data = self.train_data / 255.
         self.train_label= self.train_df[:self.no_train, 0]
+        self.train_label= tf.keras.utils.to_categorical(self.train_label, self.number_of_classes)
+
         if verbose:
             print("Training Set Size: {0}".format(self.no_train))
 
@@ -72,6 +74,7 @@ class TFFashionMNIST(object):
         self.test_data = self.test_df[:self.no_test, 1:].reshape((self.no_test, self.img_height, self.img_width, 1))
         self.test_data = self.test_data / 255.
         self.test_label = self.test_df[:self.no_test, 0]
+        self.test_label = tf.keras.utils.to_categorical(self.test_label, self.number_of_classes)
         if verbose:
             print("Testing Set Size: {0}".format(self.no_test))
 
@@ -126,7 +129,7 @@ class TFFashionMNIST(object):
                        batch_size=self.batch_size,
                        # steps_per_epoch=self.no_training_steps,
                        epochs=self.no_epochs,
-                       validation_data= (self.test_data, self.test_label),
+                       # validation_data= (self.test_data, self.test_label),
                        # validation_steps=self.no_testing_steps,
                        verbose=True,
                        callbacks=callbacks
@@ -161,5 +164,5 @@ model.create_loss()
 model.create_optimizer()
 model.train(log_dir=log_dir)
 
-
+# 60000/60000 [==============================] - 32s 532us/step - loss: 9.2494 - acc: 0.2904
 #loss: 14.5063 - sparse_categorical_crossentropy: 14.5063 - val_loss: 14.5063 - val_sparse_categorical_crossentropy: 14.5063

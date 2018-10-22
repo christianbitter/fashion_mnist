@@ -1,7 +1,13 @@
 {
     "learning_rate": 0.001,
     "batch_size": 50,
-    "no_epochs": 10,
+    "no_epochs": 20,
+    "use_checkpointing" : {
+
+    },
+    "use_early_stoping" : {
+
+    },
 
     "num_channels": 16,
     "use_batch_norm": true,

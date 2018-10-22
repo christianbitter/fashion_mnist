@@ -9,6 +9,9 @@ import os
 from Params import Params
 from tensorflow import keras
 
+tf.logging.set_verbosity(tf.logging.INFO)
+
+
 # TODO: the training loop should be split
 # TODO: saving model state on improvement
 # TODO: this should be a high level file calling the whole model building/training - this is the training file
@@ -88,8 +91,10 @@ class TFFashionMNIST(tf.keras.Model):
     def __create_model(self):
         self.model = keras.models.Sequential([
             tf.keras.layers.Conv2D(32, (5, 5), padding="same", input_shape=[28, 28, 1]),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.MaxPool2D((2, 2)),
             tf.keras.layers.Conv2D(64, (5, 5), padding="same"),
+            tf.keras.layers.BatchNormalization(),
             tf.keras.layers.MaxPool2D((2, 2)),
             tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(1024, activation=tf.nn.relu),

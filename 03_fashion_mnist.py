@@ -20,9 +20,13 @@ x_train = x_train / 255.0
 
 model = tf.keras.models.Sequential([
     tf.keras.layers.Conv2D(32, (5, 5), padding="same", input_shape=[28, 28, 1]),
+    tf.keras.layers.BatchNormalization(),
     tf.keras.layers.MaxPool2D((2, 2)),
+
     tf.keras.layers.Conv2D(64, (5, 5), padding="same"),
+    tf.keras.layers.BatchNormalization(),
     tf.keras.layers.MaxPool2D((2, 2)),
+
     tf.keras.layers.Flatten(),
     tf.keras.layers.Dense(1024, activation=tf.nn.relu),
     tf.keras.layers.Dropout(0.2),
@@ -43,7 +47,7 @@ cb = [tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0, write_gr
 print("Number of Train Observations: {0}".format(x_train.shape[0]))
 
 model.fit(x_train, y_train,
-          epochs=5,
+          epochs=10,
           callbacks=cb,
           verbose=True)
 print("Model: {0}".format(model.summary()))

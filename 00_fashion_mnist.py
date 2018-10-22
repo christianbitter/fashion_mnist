@@ -101,16 +101,16 @@ class TFFashionMNIST(object):
     def create_model(self):
         # convnet layer 1 - convolution, max pooling, convolution max pooling, flatten, dense, dense
         with tf.name_scope('conv1'):
-            self.conv1 = tf.layers.conv2d(inputs=self.data, kernel_size=(3, 3), filters=30, activation='relu')
+            self.conv1 = tf.layers.conv2d(inputs=self.data, kernel_size=(5, 5), filters=30, padding='same')
             self.mpool1= tf.layers.max_pooling2d(inputs=self.conv1, pool_size=(2, 2), strides=(2, 2))
             # potential dropout
 
         with tf.name_scope('conv2'):
-            self.conv2 = tf.layers.conv2d(inputs=self.mpool1, kernel_size=(3, 3), filters=80, activation='relu')
+            self.conv2 = tf.layers.conv2d(inputs=self.mpool1, kernel_size=(5, 5), filters=80, padding='same')
             self.mpool2= tf.layers.max_pooling2d(inputs=self.conv2, pool_size=(2, 2), strides=(2, 2))
 
         with tf.name_scope('conv3'):
-            self.conv3 = tf.layers.conv2d(inputs=self.mpool2, kernel_size=(3, 3), filters=120, activation='relu')
+            self.conv3 = tf.layers.conv2d(inputs=self.mpool2, kernel_size=(3, 3), filters=120, padding='same')
             self.mpool3= tf.layers.max_pooling2d(inputs=self.conv3, pool_size=(2, 2), strides=(2, 2))
 
         final_layer = self.mpool3
@@ -124,13 +124,13 @@ class TFFashionMNIST(object):
         # softmax cross entropy loss for multi-class classification
 
         with tf.name_scope('loss'):
-            self.loss_fn = tf.losses.sparse_softmax_cross_entropy(labels=self.label, logits=self.logits)
+            self.loss_fn = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.label, logits=self.logits)
             # run the logits through the softmax layer
-            predictions = tf.cast(tf.argmax(self.logits, 1), dtype=tf.int32)
-            self.accuracy_fn = tf.reduce_mean(tf.cast(tf.equal(x=self.label, y=predictions), dtype=tf.float32))
+            # predictions = tf.cast(tf.argmax(self.logits, 1), dtype=tf.int32)
+            # self.accuracy_fn = tf.reduce_mean(tf.cast(tf.equal(x=self.label, y=predictions), dtype=tf.float32))
 
         tf.summary.scalar(name='Loss', tensor=self.loss_fn)
-        tf.summary.scalar(name='Accuracy', tensor=self.accuracy_fn)
+        # tf.summary.scalar(name='Accuracy', tensor=self.accuracy_fn)
 
     def create_optimizer(self):
         self.global_step = tf.train.get_or_create_global_step()

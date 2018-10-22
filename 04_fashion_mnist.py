@@ -1,6 +1,8 @@
-# for update inspirations:
-# https://github.com/cs230-stanford/cs230-code-examples
-# shuffle repeat batch nicely visualized: https://medium.com/ymedialabs-innovation/how-to-use-dataset-and-iterators-in-tensorflow-with-code-samples-3bb98b6b74ab
+# based on the previous models
+# we have changed the relu activation to elu
+# we have introduced the fit and validate calls
+# we use the callbacks for early stopping and checkpointing
+
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -8,13 +10,10 @@ import matplotlib.pyplot as plt
 import os
 from Params import Params
 from tensorflow import keras
+import math
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
-
-# TODO: the training loop should be split
-# TODO: saving model state on improvement
-# TODO: this should be a high level file calling the whole model building/training - this is the training file
 
 def show_row(m, width=28, height=28):
     plt.imshow(X = m.reshape((height, width)), cmap='gray')
@@ -51,9 +50,6 @@ class TFFashionMNIST(tf.keras.Model):
         self.__create_optimizer()
 
     def __global_preprocess(self, data, label):
-        data = tf.cast(data, dtype=tf.float32)
-        data = data / 255.
-        label = tf.cast(label, dtype=tf.int64)
         return (data, label)
 
     def __train_preprocess(self, data, label):
@@ -67,25 +63,20 @@ class TFFashionMNIST(tf.keras.Model):
         if verbose:
             print("Reading Training Data: %s" % self.training_fp)
 
-        self.train_df = pd.read_csv(self.training_fp).values
-        self.no_train   = self.train_df.shape[0]
-        self.train_data = self.train_df[:self.no_train, 1:].reshape((self.no_train, self.img_height, self.img_width, 1))
-        self.train_data = self.train_data / 255.
-        self.train_label= self.train_df[:self.no_train, 0]
+        train_df = pd.read_csv(self.training_fp).values
+        self.no_train = train_df.shape[0]
+        train_data  = train_df[:self.no_train, 1:].reshape((self.no_train, self.img_height, self.img_width, 1))
+        self.train_data  = train_data / 255.
+        self.train_label = train_df[:self.no_train, 0]
+
+        test_df = pd.read_csv(self.testing_fp).values
+        self.no_test = test_df.shape[0]
+        test_data  = train_df[:self.no_test, 1:].reshape((self.no_test, self.img_height, self.img_width, 1))
+        self.test_data  = test_data / 255.
+        self.test_label = test_df[:self.no_test, 0]
 
         if verbose:
             print("Training Set Size: {0}".format(self.no_train))
-
-        if import_test:
-            if verbose:
-                print("Reading Testing Data: %s" % self.testing_fp)
-            self.test_df = pd.read_csv(self.training_fp).values
-            self.no_test = self.train_df.shape[0]
-            self.test_data = self.test_df[:self.no_test, 1:].reshape((self.no_test, self.img_height, self.img_width, 1))
-            self.test_data = self.test_data / 255.
-            self.test_label = self.test_df[:self.no_test, 0]
-            if verbose:
-                print("Testing Set Size: {0}".format(self.no_test))
 
 
     def __create_model(self):
@@ -93,12 +84,20 @@ class TFFashionMNIST(tf.keras.Model):
             tf.keras.layers.Conv2D(32, (5, 5), padding="same", input_shape=[28, 28, 1]),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.MaxPool2D((2, 2)),
+            tf.keras.layers.Dropout(0.2),
+
             tf.keras.layers.Conv2D(64, (5, 5), padding="same"),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.MaxPool2D((2, 2)),
+
+            tf.keras.layers.Conv2D(128, (3, 3), padding="same"),
+            tf.keras.layers.BatchNormalization(),
+            tf.keras.layers.MaxPool2D((2, 2)),
+
+
             tf.keras.layers.Flatten(),
-            tf.keras.layers.Dense(1024, activation=tf.nn.relu),
-            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(1024, activation=tf.nn.elu),
+            tf.keras.layers.Dropout(0.5),
             tf.keras.layers.Dense(10, activation=tf.nn.softmax)
         ])
 
@@ -117,19 +116,29 @@ class TFFashionMNIST(tf.keras.Model):
                      metrics=[self.accuracy_fn])
 
     def train(self, log_dir=None):
-        callbacks = []
+        callbacks = [
+            tf.keras.callbacks.EarlyStopping(patience=2, monitor='val_loss'),
+            tf.keras.callbacks.ModelCheckpoint(filepath="checkpoints/",
+                                               monitor='val_loss', save_best_only=True, mode="min",
+                                               save_weights_only=True, period=1,
+                                               verbose=True)
+        ]
         if log_dir:
             if self.verbose:
                 print("Enabling Keras Tensorboard Callback: %s" % log_dir)
             kcb = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=True, write_images=False)
             callbacks.append(kcb)
 
-        self.fit(x=self.train_data,
-                 y=self.train_label,
-                 epochs=self.no_epochs,
+        self.fit(x=self.train_data, y=self.train_label, batch_size=self.batch_size, epochs=self.no_epochs,
+                 validation_split=.1, shuffle=True,
                  verbose=True,
                  callbacks=callbacks
                  )
+
+    def test(self):
+        if self.verbose:
+            print("Testing: {0} - {1}".format(self.test_data.shape, self.test_label.shape))
+        return self.evaluate(x=self.test_data, y=self.test_label, batch_size=self.batch_size)
 
     def call(self, inputs, training=None, mask=None):
         x = inputs
@@ -155,7 +164,7 @@ if not os.path.exists(log_dir):
 
 model = TFFashionMNIST(learning_rate=lr, batch_size=batch_size, epochs=no_epochs, verbose=True)
 model.import_data(verbose=True)
-print("x_train shape:", model.train_data.shape, "y_train shape:", model.train_label.shape)
 model.train(log_dir=log_dir)
-print(model.model.summary())
-#
+loss, metrics = model.test()
+
+print("Validation Loss: {0}/ Validation Accuracy: {1}".format(loss, metrics))
